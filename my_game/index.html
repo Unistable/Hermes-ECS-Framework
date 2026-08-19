@@ -83,7 +83,7 @@ button:hover{background:linear-gradient(#5a1010,#2a0404);color:#fff;box-shadow:0
 </div>
 <script type="module">
 import * as THREE from 'three';
-import { Game, World, PipelineStages } from '../hermes_ecs/src/index.js';
+import { Game, World, PipelineStages, installSystem } from '../hermes_ecs/src/index.js';
 import { Player, Deck, Maze, Enemy, UIState } from './components.js';
 import { MazeGenSystem, CardSystem, EnemySystem, RenderSystem, AudioSystem } from './systems.js';
 
@@ -351,18 +351,19 @@ const game = new Game({
 const world = new World();
 world.ctx = game._sharedCtx;
 
-// Регистрируем системы
+// Регистрируем системы с использованием installSystem для автоматической инициализации
+
 const mazeGen = new MazeGenSystem();
 const cardSys = new CardSystem();
 const enemySys = new EnemySystem();
 const renderSys = new RenderSystem();
 const audioSys = new AudioSystem();
 
-world.pipeline.add(mazeGen, { stage: PipelineStages.STEP });
-world.pipeline.add(cardSys, { stage: PipelineStages.STEP });
-world.pipeline.add(enemySys, { stage: PipelineStages.FIXED_STEP });
-world.pipeline.add(renderSys, { stage: PipelineStages.RENDER });
-world.pipeline.add(audioSys, { stage: PipelineStages.INPUT });
+installSystem(world, mazeGen, { stage: PipelineStages.STEP });
+installSystem(world, cardSys, { stage: PipelineStages.STEP });
+installSystem(world, enemySys, { stage: PipelineStages.FIXED_STEP });
+installSystem(world, renderSys, { stage: PipelineStages.RENDER });
+installSystem(world, audioSys, { stage: PipelineStages.INPUT });
 
 // Создаём начальные сущности
 const playerId = world.create();
@@ -370,9 +371,6 @@ world.add(playerId, Player, {
   gx: 1, gz: 1, px: 0, pz: 0, dir: 0, yaw: 0, tyaw: 0,
   hp: 100, armor: 25, ap: 3, level: 1, kills: 0,
 });
-
-const mazeId = world.create();
-world.add(mazeId, Maze, { grid: [], width: 17, height: 17, exitX: 1, exitZ: 1 });
 
 const deckId = world.create();
 world.add(deckId, Deck, { deck: [], hand: [], discard: [] });
@@ -382,7 +380,7 @@ world.add(uiId, UIState, { busy: false, dead: false, shake: 0, kick: 0, flashT: 
 
 // Инициализация
 init3D(world);
-mazeGen.buildLevel();
+// buildLevel вызывается автоматически в onInit MazeGenSystem
 cardSys.startTurn();
 toast('УРОВЕНЬ 1 · НАЙДИ ПОРТАЛ');
 

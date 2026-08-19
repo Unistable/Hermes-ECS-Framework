@@ -78,12 +78,15 @@ export class MazeGenSystem extends System {
     return dist;
   }
 
-  onInit() {
-    super.onInit();
+  onInit(world) {
+    super.onInit(world);
+    this._setupQueries();
     this.buildLevel();
   }
 
   buildLevel() {
+    if (!this.world) return;
+    
     const mazeQuery = this.queries.maze;
     const playerQuery = this.queries.players;
     const enemyQuery = this.queries.enemies;
@@ -97,8 +100,18 @@ export class MazeGenSystem extends System {
 
     // Генерируем новый лабиринт
     const mazeData = this.generateMaze(17, 17);
-    const mazeEntity = mazeQuery.first();
-    if (mazeEntity) {
+    let mazeEntity = mazeQuery.first();
+    
+    if (!mazeEntity) {
+      mazeEntity = this.world.create();
+      this.world.add(mazeEntity, Maze, {
+        grid: mazeData,
+        width: 17,
+        height: 17,
+        exitX: 1,
+        exitZ: 1
+      });
+    } else {
       const maze = this.world.get(mazeEntity, Maze);
       maze.grid = mazeData;
     }
@@ -118,11 +131,9 @@ export class MazeGenSystem extends System {
       }
     }
 
-    if (mazeEntity) {
-      const maze = this.world.get(mazeEntity, Maze);
-      maze.exitX = exitX;
-      maze.exitZ = exitZ;
-    }
+    const maze = this.world.get(mazeEntity, Maze);
+    maze.exitX = exitX;
+    maze.exitZ = exitZ;
 
     // Спавним врагов
     const playerEntity = playerQuery.first();
