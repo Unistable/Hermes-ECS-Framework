@@ -1,0 +1,41 @@
+{
+  "name": "hermes-ecs",
+  "version": "3.0.0",
+  "description": "HermesECS — чистый ECS Framework для HTML5 игр: движок (World/Query/Pipeline) + HTML5-адаптеры (Canvas2D/Input/Audio/Assets/Time). Без demo-компонентов и demo-систем — ты создаёшь их сам под свою игру.",
+  "type": "module",
+  "main": "src/index.js",
+  "types": "types/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.js",
+      "types": "./types/index.d.ts"
+    }
+  },
+  "files": [
+    "src",
+    "types",
+    "server.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "dev": "node server.js",
+    "serve": "node server.js"
+  },
+  "keywords": [
+    "ecs",
+    "entity-component-system",
+    "game",
+    "gamedev",
+    "html5",
+    "canvas",
+    "javascript",
+    "typescript",
+    "framework"
+  ],
+  "license": "MIT",
+  "author": "HermesECS Project",
+  "engines": {
+    "node": ">=14"
+  }
+}
