@@ -366,10 +366,16 @@ world.pipeline.add(audioSys, { stage: PipelineStages.INPUT });
 
 // Создаём начальные сущности
 const playerId = world.create();
-world.add(playerId, Player, {});
+world.add(playerId, Player, {
+  gx: 1, gz: 1, px: 0, pz: 0, dir: 0, yaw: 0, tyaw: 0,
+  hp: 100, armor: 25, ap: 3, level: 1, kills: 0,
+});
 
 const mazeId = world.create();
 world.add(mazeId, Maze, { grid: [], width: 17, height: 17, exitX: 1, exitZ: 1 });
+
+const deckId = world.create();
+world.add(deckId, Deck, { deck: [], hand: [], discard: [] });
 
 const uiId = world.create();
 world.add(uiId, UIState, { busy: false, dead: false, shake: 0, kick: 0, flashT: 0, bobT: 0 });
@@ -383,7 +389,8 @@ toast('УРОВЕНЬ 1 · НАЙДИ ПОРТАЛ');
 // Обработчик завершения хода
 $('endbtn').addEventListener('click', () => {
   const uiState = world.get(uiId, UIState);
-  const deck = world.get(cardSys.decks.first(), Deck);
+  const deckComp = cardSys.decks.first();
+  const deck = world.get(deckComp, Deck);
   if (uiState.busy || uiState.dead) return;
   deck.discard.push(...deck.hand);
   deck.hand = [];
@@ -400,7 +407,11 @@ $('revive').addEventListener('click', () => {
   player.armor = 25;
   player.level = 1;
   player.kills = 0;
-  cardSys.createBaseDeck();
+  const deckComp = cardSys.decks.first();
+  const deck = world.get(deckComp, Deck);
+  deck.deck = cardSys.createBaseDeck();
+  deck.hand = [];
+  deck.discard = [];
   mazeGen.buildLevel();
   cardSys.startTurn();
   uiState.busy = false;
@@ -415,8 +426,9 @@ function loop(time) {
   lastTime = time;
 
   const uiState = world.get(uiId, UIState);
+  const deckComp = cardSys.decks.first();
+  const deck = world.get(deckComp, Deck);
   const player = world.get(playerId, Player);
-  const deck = world.get(cardSys.decks.first(), Deck);
 
   // Обновление UI
   hud(player, deck);
@@ -453,7 +465,7 @@ function loop(time) {
     pointLight.intensity = 9 + (uiState.flashT / 0.12) * 26;
 
     // Обновление врагов
-    const enemyQuery = world.query({ all: [Enemy] });
+    const enemyQuery = renderSys.enemies;
     for (const eid of enemyQuery) {
       const enemy = world.get(eid, Enemy);
       const tx = enemy.x + 0.5 - 8.5;

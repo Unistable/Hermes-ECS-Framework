@@ -9,7 +9,11 @@ const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];
 
 // Система генерации лабиринта (алгоритм recursive backtracker)
 export class MazeGenSystem extends System {
-  static queries = { maze: { all: [Maze] } };
+  static queries = { 
+    maze: { all: [Maze] },
+    players: { all: [Player] },
+    enemies: { all: [Enemy] }
+  };
 
   generateMaze(width, height) {
     const maze = Array.from({ length: height }, () => Array(width).fill(1));
@@ -74,26 +78,28 @@ export class MazeGenSystem extends System {
     return dist;
   }
 
-  onInit(world) {
-    super.onInit(world);
+  onInit() {
+    super.onInit();
     this.buildLevel();
   }
 
   buildLevel() {
-    const mazeQuery = this.maze;
-    const playerQuery = world.query({ all: [Player] });
-    const enemyQuery = world.query({ all: [Enemy] });
+    const mazeQuery = this.queries.maze;
+    const playerQuery = this.queries.players;
+    const enemyQuery = this.queries.enemies;
 
     // Очищаем старые враги
-    for (const eid of enemyQuery) {
-      world.destroy(eid);
+    if (enemyQuery && enemyQuery.toArray) {
+      for (const eid of enemyQuery.toArray()) {
+        this.world.destroy(eid);
+      }
     }
 
     // Генерируем новый лабиринт
     const mazeData = this.generateMaze(17, 17);
     const mazeEntity = mazeQuery.first();
     if (mazeEntity) {
-      const maze = world.get(mazeEntity, Maze);
+      const maze = this.world.get(mazeEntity, Maze);
       maze.grid = mazeData;
     }
 
@@ -113,13 +119,16 @@ export class MazeGenSystem extends System {
     }
 
     if (mazeEntity) {
-      const maze = world.get(mazeEntity, Maze);
+      const maze = this.world.get(mazeEntity, Maze);
       maze.exitX = exitX;
       maze.exitZ = exitZ;
     }
 
     // Спавним врагов
-    const playerLvl = world.get(playerQuery.first(), Player).level;
+    const playerEntity = playerQuery.first();
+    if (!playerEntity) return;
+    
+    const playerLvl = this.world.get(playerEntity, Player).level;
     const wantEnemies = Math.min(4 + playerLvl, 11);
     const candidates = [];
 
@@ -140,8 +149,8 @@ export class MazeGenSystem extends System {
       const dmg = (isElite ? 14 : 9) + (playerLvl - 1) * 2;
       const sy = isElite ? 1.62 : 1.3;
 
-      const enemyId = world.create();
-      const enemy = world.add(enemyId, Enemy, {
+      const enemyId = this.world.create();
+      this.world.add(enemyId, Enemy, {
         x: ex, z: ez,
         px: ex + 0.5 - 8.5,
         pz: ez + 0.5 - 8.5,
@@ -152,7 +161,7 @@ export class MazeGenSystem extends System {
     }
 
     // Сбрасываем игрока на старт
-    const player = world.get(playerQuery.first(), Player);
+    const player = this.world.get(playerEntity, Player);
     player.gx = 1;
     player.gz = 1;
     player.px = 1 + 0.5 - 8.5;
@@ -195,10 +204,10 @@ export class CardSystem extends System {
     return deck.sort(() => Math.random() - 0.5);
   }
 
-  onInit(world) {
-    super.onInit(world);
-    const deckId = world.create();
-    world.add(deckId, Deck, {
+  onInit() {
+    super.onInit();
+    const deckId = this.world.create();
+    this.world.add(deckId, Deck, {
       deck: this.createBaseDeck(),
       hand: [],
       discard: [],
@@ -255,7 +264,7 @@ export class CardSystem extends System {
   executeCard(card) {
     const playerComp = this.players.first();
     const player = this.world.get(playerComp, Player);
-    const mazeComp = this.world.query({ all: [Maze] }).first();
+    const mazeComp = this.queries.maze.first();
     const maze = this.world.get(mazeComp, Maze);
     const uiState = this.uiStates.first();
     const ui = this.world.get(uiState, UIState);
@@ -425,8 +434,8 @@ export class RenderSystem extends System {
     this.ceilMesh = null;
   }
 
-  onInit(world) {
-    super.onInit(world);
+  onInit() {
+    super.onInit();
     this.init3D();
   }
 
@@ -501,8 +510,8 @@ export class AudioSystem extends System {
   sLevel() { this.tone(220, 440, 0.15, 'square', 0.3); setTimeout(() => this.tone(330, 660, 0.2, 'square', 0.3), 140); }
   sDeath() { this.tone(200, 25, 1.2, 'sawtooth', 0.5); }
 
-  onInit(world) {
-    super.onInit(world);
+  onInit() {
+    super.onInit();
     window.addEventListener('pointerdown', () => this.initAudio());
   }
 }
