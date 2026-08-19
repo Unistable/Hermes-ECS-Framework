@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>АДОВЫЙ ЛАБИРИНТ - ECS</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;user-select:none}
+html,body{width:100%;height:100%;background:#000;overflow:hidden;font-family:'Courier New',monospace}
+#app{display:flex;flex-direction:column;height:100%}
+#view{position:relative;flex:1;background:#050202;overflow:hidden}
+#view canvas.gl{position:absolute;inset:0;z-index:0;image-rendering:pixelated}
+#scan{position:absolute;inset:0;pointer-events:none;z-index:4;opacity:.45;background:repeating-linear-gradient(0deg,rgba(0,0,0,.35) 0 1px,transparent 1px 3px)}
+#vig{position:absolute;inset:0;pointer-events:none;z-index:3;background:radial-gradient(ellipse at center,transparent 52%,rgba(0,0,0,.8) 100%)}
+#weapon{position:absolute;left:50%;bottom:0;width:auto;height:58%;max-width:90%;transform:translateX(-50%);z-index:2;pointer-events:none;image-rendering:pixelated}
+#dmg{position:absolute;inset:0;pointer-events:none;z-index:5;background:radial-gradient(ellipse at center,transparent 35%,rgba(255,10,10,.6) 100%);opacity:0;transition:opacity .5s}
+#shotfx{position:absolute;inset:0;pointer-events:none;z-index:5;background:rgba(255,210,120,.3);opacity:0;transition:opacity .14s}
+#healfx{position:absolute;inset:0;pointer-events:none;z-index:5;background:radial-gradient(ellipse at center,transparent 40%,rgba(60,255,90,.35) 100%);opacity:0;transition:opacity .5s}
+#fade{position:absolute;inset:0;pointer-events:none;z-index:8;background:#000;opacity:0;transition:opacity .3s}
+#title{position:absolute;top:10px;left:14px;z-index:6;color:#a01818;font-weight:bold;letter-spacing:4px;font-size:14px;text-shadow:0 0 10px #f00,1px 1px 0 #000}
+#toast{position:absolute;top:14%;left:50%;transform:translateX(-50%);z-index:6;color:#ffce3a;font-size:24px;letter-spacing:6px;font-weight:bold;text-shadow:0 0 14px #f60,2px 2px 0 #000;opacity:0;transition:opacity .4s;white-space:nowrap}
+#over{position:absolute;inset:0;z-index:50;display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px;background:rgba(15,0,0,.88)}
+#over.show{display:flex}
+#over h1{color:#f01818;font-size:52px;letter-spacing:10px;text-shadow:0 0 30px #f00,3px 3px 0 #000}
+#over p{color:#c88;font-size:15px;letter-spacing:3px}
+#over button{margin-top:10px}
+button{font-family:'Courier New',monospace;font-weight:bold;letter-spacing:2px;font-size:12px;color:#ffb0a0;background:linear-gradient(#3a0808,#160202);border:2px solid #7a1a1a;padding:10px 14px;cursor:pointer;text-transform:uppercase}
+button:hover{background:linear-gradient(#5a1010,#2a0404);color:#fff;box-shadow:0 0 12px #a00}
+#hud{height:206px;display:flex;gap:12px;padding:12px 14px;background:linear-gradient(#180404,#060101);border-top:3px solid #5a0f0f;color:#caa}
+#stats{width:236px;display:flex;flex-direction:column;gap:8px;justify-content:center}
+.bar label{display:flex;justify-content:space-between;font-size:11px;letter-spacing:2px;color:#b66;margin-bottom:3px}
+.track{height:14px;border:2px solid #601010;background:#120202;position:relative}
+.track i{position:absolute;inset:0;transform-origin:left;background:linear-gradient(#f44,#700);transition:transform .25s}
+#arbar i{background:linear-gradient(#bcd,#467)}
+#ap{font-size:12px;letter-spacing:2px;color:#b66}
+#ap b{color:#ffd23a;font-size:16px;letter-spacing:5px;text-shadow:0 0 8px #fa0}
+#hand{position:relative;flex:1}
+#hand.lock .card{pointer-events:none;filter:grayscale(.7) brightness(.55)}
+.card{position:absolute;left:50%;top:14px;width:118px;height:158px;margin-left:-59px;background:linear-gradient(160deg,#2a0808,#120202 70%);border:2px solid #7a1a1a;box-shadow:0 0 0 2px #000,0 6px 14px #000;cursor:pointer;transform:translateX(var(--x)) translateY(var(--y)) rotate(var(--r));transition:transform .13s,box-shadow .13s;display:flex;flex-direction:column;align-items:center;padding:8px}
+.card:hover{transform:translateX(var(--x)) translateY(-52px) rotate(0deg) scale(1.13);z-index:40;box-shadow:0 0 0 2px #000,0 0 18px #a22}
+.card .cost{position:absolute;top:6px;left:6px;width:24px;height:24px;border:2px solid #a86020;border-radius:50%;background:#1a0a02;color:#ffd23a;font-weight:bold;font-size:13px;display:flex;align-items:center;justify-content:center;text-shadow:0 0 6px #fa0}
+.card .ico{flex:1;display:flex;align-items:center;font-size:46px;text-shadow:0 0 12px currentColor}
+.card .name{font-size:11px;letter-spacing:1px;color:#e8c0a0;text-align:center;font-weight:bold}
+.t-shot .ico{color:#ff3b1f}
+.t-heal .ico{color:#57d057}
+.t-move .ico,.t-turn .ico{color:#e0b050}
+#side{width:196px;display:flex;flex-direction:column;gap:8px;justify-content:center;font-size:12px;letter-spacing:2px;color:#b66}
+#side b{color:#e8c0a0}
+#side button{margin-top:6px}
+</style>
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}
+</script>
+</head>
+<body>
+<div id="app">
+<div id="view">
+<canvas id="weapon" width="240" height="190"></canvas>
+<div id="vig"></div>
+<div id="scan"></div>
+<div id="shotfx"></div>
+<div id="dmg"></div>
+<div id="healfx"></div>
+<div id="title">АДОВЫЙ ЛАБИРИНТ</div>
+<div id="toast"></div>
+<div id="fade"></div>
+<div id="over"><h1>ВЫ ПОГИБЛИ</h1><p id="ovstats"></p><button id="revive">ВОССТАТЬ ИЗ ПЕПЛА</button></div>
+</div>
+<div id="hud">
+<div id="stats">
+<div class="bar"><label><span>ЗДОРОВЬЕ</span><span id="hptxt">100</span></label><div class="track"><i id="hpbar"></i></div></div>
+<div class="bar"><label><span>БРОНЯ</span><span id="artxt">25</span></label><div class="track" id="arbar"><i id="arbari"></i></div></div>
+<div id="ap">ЭНЕРГИЯ <b id="appips"></b></div>
+</div>
+<div id="hand"></div>
+<div id="side">
+<div>УРОВЕНЬ <b id="lvl">1</b></div>
+<div>УБИТО <b id="kills">0</b></div>
+<div>КОЛОДА <b id="dck">0</b> · СБРОС <b id="dsc">0</b></div>
+<button id="endbtn">ЗАВЕРШИТЬ ХОД</button>
+</div>
+</div>
+</div>
+<script type="module">
+import { Game, World } from '../hermes_ecs/src/index.js';
+import { Player, Deck, Maze, Enemy, UIState } from './components.js';
+import { MazeGenSystem, CardSystem, EnemySystem, RenderSystem, AudioSystem } from './systems.js';
+
+const $ = id => document.getElementById(id);
+const view = $('view'), handEl = $('hand'), wcanvas = $('weapon'), wctx = wcanvas.getContext('2d');
+wctx.imageSmoothingEnabled = false;
+
+// Текстуры и меши для рендера
+let scene, camera, renderer, pointLight, wallMesh, portalSprite, wallGeo, wallMat, floorMesh, ceilMesh;
+let enemies = [];
+const MW = 17, MH = 17;
+const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+
+// Генератор случайных чисел с seed
+function rng(seed) {
+  let s = seed;
+  return () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+}
+const R = rng(1337);
+
+// Создание текстур
+function mkCanvas(w, h) {
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  return c;
+}
+
+function ctex(c, repeat) {
+  const t = new THREE.CanvasTexture(c);
+  t.magFilter = THREE.NearestFilter;
+  t.minFilter = THREE.NearestFilter;
+  t.generateMipmaps = false;
+  t.colorSpace = THREE.SRGBColorSpace;
+  if (repeat) {
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  }
+  return t;
+}
+
+function makeWallTex() {
+  const c = mkCanvas(64, 64), x = c.getContext('2d');
+  x.fillStyle = '#141010';
+  x.fillRect(0, 0, 64, 64);
+  for (let by = 0; by < 4; by++) {
+    for (let bx = 0; bx < 2; bx++) {
+      const ox = bx * 32 + ((by % 2) * 16 - 8);
+      x.fillStyle = R() < 0.25 ? '#2a0d0d' : '#1d1717';
+      x.fillRect(ox + 1, by * 16 + 1, 30, 14);
+      x.fillRect(ox - 31, by * 16 + 1, 30, 14);
+      x.fillRect(ox + 33, by * 16 + 1, 30, 14);
+    }
+  }
+  for (let i = 0; i < 500; i++) {
+    x.fillStyle = R() < 0.5 ? 'rgba(0,0,0,.4)' : 'rgba(255,60,40,.06)';
+    x.fillRect((R() * 64) | 0, (R() * 64) | 0, 1, 1);
+  }
+  x.fillStyle = '#3a0f0f';
+  x.fillRect(0, 30, 64, 2);
+  x.fillStyle = '#5a1616';
+  x.fillRect(0, 30, 64, 1);
+  return ctex(c);
+}
+
+function makeFloorTex() {
+  const c = mkCanvas(64, 64), x = c.getContext('2d');
+  x.fillStyle = '#0d0b0b';
+  x.fillRect(0, 0, 64, 64);
+  for (let i = 0; i < 700; i++) {
+    x.fillStyle = R() < 0.6 ? 'rgba(0,0,0,.5)' : 'rgba(120,90,80,.08)';
+    x.fillRect((R() * 64) | 0, (R() * 64) | 0, 1, 1);
+  }
+  x.fillStyle = '#050404';
+  x.fillRect(0, 0, 64, 2);
+  x.fillRect(0, 0, 2, 64);
+  x.fillRect(0, 32, 64, 1);
+  x.fillRect(32, 0, 1, 64);
+  x.fillStyle = 'rgba(90,0,0,.35)';
+  x.beginPath();
+  x.arc(40, 22, 7, 0, 7);
+  x.fill();
+  x.fillStyle = 'rgba(60,0,0,.4)';
+  x.beginPath();
+  x.arc(18, 48, 5, 0, 7);
+  x.fill();
+  return ctex(c, true);
+}
+
+function makeCeilTex() {
+  const c = mkCanvas(64, 64), x = c.getContext('2d');
+  x.fillStyle = '#0a0808';
+  x.fillRect(0, 0, 64, 64);
+  x.fillStyle = '#060505';
+  for (let i = 0; i < 8; i++) x.fillRect(i * 8, 0, 2, 64);
+  x.fillStyle = '#161010';
+  x.fillRect(0, 30, 64, 4);
+  for (let i = 0; i < 300; i++) {
+    x.fillStyle = 'rgba(0,0,0,.5)';
+    x.fillRect((R() * 64) | 0, (R() * 64) | 0, 1, 1);
+  }
+  return ctex(c, true);
+}
+
+// Спрайты врагов
+const DEMON = ['................','..H..........H..','..HH........HH..','...HH......HH...','...RRRRRRRRRR...','..RRRRRRRRRRRR..','..RRERRRRRRERR..','..RRRRRRRRRRRR..','..RRRMMMMMMRRR..','...RRRRRRRRRR...','..RRRRRRRRRRRR..','.RR.RRRRRRRR.RR.','.RR.RRRRRRRR.RR.','.rr.RRRRRRRR.rr.','....RRRRRRRR....','....RRR..RRR....','....RRR..RRR....','...RRRR..RRRR...','..HHHH....HHHH..','................'];
+const PAL_BODY = [{R:'#7a0d0d',r:'#c22a12',E:'#ffd23a',H:'#242424',M:'#160000'},{R:'#33333e',r:'#5a5a6c',E:'#8ef2ff',H:'#101016',M:'#000000'}];
+
+function mapCanvas(rows, pal) {
+  const h = rows.length, w = rows[0].length, c = mkCanvas(w, h), x = c.getContext('2d');
+  for (let j = 0; j < h; j++)
+    for (let i = 0; i < w; i++) {
+      const ch = rows[j][i];
+      if (ch !== '.') {
+        x.fillStyle = pal[ch] || '#f0f';
+        x.fillRect(i, j, 1, 1);
+      }
+    }
+  return c;
+}
+
+function flashPal() {
+  return {R:'#ffffff',r:'#ffffff',E:'#ffffff',H:'#dddddd',M:'#ffffff'};
+}
+
+const ETYPES = [
+  {cN:mapCanvas(DEMON,PAL_BODY[0]),cF:mapCanvas(DEMON,flashPal()),hp:40,dmg:9,sx:1.05,sy:1.3},
+  {cN:mapCanvas(DEMON,PAL_BODY[1]),cF:mapCanvas(DEMON,flashPal()),hp:70,dmg:14,sx:1.3,sy:1.62}
+];
+ETYPES.forEach(t => {t.tN=ctex(t.cN);t.tF=ctex(t.cF);});
+
+// Оружие и вспышка
+const WEAPON = ['...........ss...........','..........SSSS..........','..........SsSS..........','..........SSSS..........','.........SSSSSS.........','.........SSSSSS.........','.........SssSSS.........','........SSSSSSSS........','........SSSSSSSS........','.......WWSSSSSSWW.......','......WWWWSSSSWWWW......','......WWWWWWWWWWWW......','......WwWWWWWWWWwW......','......WWWWWWWWWWWW......','.......WWWWWWWWWW.......','......GGGWWWWWWGGG......','.....GGGGWWWWWWGGGG.....','.....GGGGGWWWWGGGGG.....','....GGGGGGWWWWGGGGGG....','....GGGGGGGGGGGGGGGG....','...GGGGGGGGGGGGGGGGGG...','...GGGGGGGGGGGGGGGGGG...'];
+const weaponCv = mapCanvas(WEAPON,{S:'#232323',s:'#4a4a4a',W:'#4a2610',w:'#6a3a1a',G:'#2e2018'});
+const FLASH = ['......YYY......','......YYY......','.....YYYYY.....','..Y..YYYYY..Y..','...YYWWWWWYY...','.YYWWWWWWWWWYY.','YYWWWWOWWWWWYY','.YYWWWWWWWWWYY.','...YYWWWWWYY...','..Y..YYYYY..Y..','.....YYYYY.....','......YYY......','......YYY......'];
+const flashCv = mapCanvas(FLASH,{Y:'#ffd83a',W:'#fff6d0',O:'#ff7a1a'});
+
+function makePortalTex() {
+  const c = mkCanvas(24, 24), x = c.getContext('2d');
+  for (let j = 0; j < 24; j++)
+    for (let i = 0; i < 24; i++) {
+      const dx = i - 12, dy = (j - 12) * 1.2, r = Math.hypot(dx, dy);
+      if (r < 10 && r > 1.5) {
+        const a = Math.atan2(dy, dx) + r * 0.5;
+        const v = Math.sin(a * 3) + Math.sin(r * 1.4);
+        const t2 = Math.max(0, 1 - r / 10);
+        x.fillStyle = v > 1 ? '#ffdf7a' : (v > 0 ? '#ff5a1a' : (v > -1 ? '#8a1010' : '#3a0808'));
+        if (r < 3) x.fillStyle = '#fff2c0';
+        x.globalAlpha = 0.5 + t2 * 0.5;
+        x.fillRect(i, j, 1, 1);
+        x.globalAlpha = 1;
+      }
+    }
+  return ctex(c);
+}
+
+// Инициализация 3D
+function init3D(world) {
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x000000);
+  scene.fog = new THREE.FogExp2(0x000000, 0.13);
+  camera = new THREE.PerspectiveCamera(72, 1, 0.05, 40);
+  scene.add(camera);
+  scene.add(new THREE.AmbientLight(0x553322, 0.55));
+  pointLight = new THREE.PointLight(0xff6a33, 9, 9, 1.8);
+  scene.add(pointLight);
+  wallGeo = new THREE.BoxGeometry(1, 2, 1);
+  wallMat = new THREE.MeshLambertMaterial({map:makeWallTex()});
+  const ft = makeFloorTex();
+  ft.repeat.set(MW, MH);
+  floorMesh = new THREE.Mesh(new THREE.PlaneGeometry(MW, MH), new THREE.MeshLambertMaterial({map:ft}));
+  floorMesh.rotation.x = -Math.PI / 2;
+  scene.add(floorMesh);
+  const ct2 = makeCeilTex();
+  ct2.repeat.set(MW, MH);
+  ceilMesh = new THREE.Mesh(new THREE.PlaneGeometry(MW, MH), new THREE.MeshLambertMaterial({map:ct2}));
+  ceilMesh.rotation.x = Math.PI / 2;
+  ceilMesh.position.y = 2;
+  scene.add(ceilMesh);
+  portalSprite = new THREE.Sprite(new THREE.SpriteMaterial({map:makePortalTex(),transparent:true}));
+  portalSprite.scale.set(1.3, 1.7, 1);
+  scene.add(portalSprite);
+  renderer = new THREE.WebGLRenderer({antialias:false});
+  renderer.domElement.className = 'gl';
+  view.prepend(renderer.domElement);
+  resize();
+  window.addEventListener('resize', resize);
+}
+
+function resize() {
+  const r = view.getBoundingClientRect();
+  const iw = 460, ih = Math.max(140, Math.round(iw * r.height / r.width));
+  renderer.setSize(iw, ih, false);
+  renderer.domElement.style.width = '100%';
+  renderer.domElement.style.height = '100%';
+  camera.aspect = r.width / r.height;
+  camera.updateProjectionMatrix();
+}
+
+function worldOf(gx, gz) {
+  return [gx + 0.5 - MW/2, gz + 0.5 - MH/2];
+}
+
+// Отрисовка оружия
+function drawWeapon(t, kick, bobT) {
+  wctx.clearRect(0, 0, 240, 190);
+  const bx = Math.round(Math.sin(t * 2.1) * 2 + Math.sin(bobT * 3) * 1);
+  const by = Math.round(Math.abs(Math.sin(t * 2.4)) * 2 + kick * 12);
+  const sc = 6, ww = 24 * sc, wh = 22 * sc;
+  const x = Math.round(120 - ww/2 + bx), y = 190 - wh + 8 + by;
+  wctx.drawImage(weaponCv, x, y, ww, wh);
+  if (kick > 0.01) {
+    const fs = 96;
+    wctx.globalCompositeOperation = 'lighter';
+    wctx.drawImage(flashCv, Math.round(120 - fs/2 + bx), y - 56, fs, fs);
+    wctx.globalCompositeOperation = 'source-over';
+  }
+}
+
+// UI функции
+function hud(player, deck) {
+  $('hpbar').style.transform = `scaleX(${player.hp/100})`;
+  $('hptxt').textContent = Math.max(0, player.hp);
+  $('arbari').style.transform = `scaleX(${player.armor/100})`;
+  $('artxt').textContent = Math.max(0, player.armor);
+  $('appips').textContent = '◆'.repeat(player.ap) + '◇'.repeat(Math.max(0, 3 - player.ap));
+  $('lvl').textContent = player.level;
+  $('kills').textContent = player.kills;
+  $('dck').textContent = deck.deck.length;
+  $('dsc').textContent = deck.discard.length;
+}
+
+function toast(t) {
+  const el = $('toast');
+  el.textContent = t;
+  el.style.opacity = 1;
+  setTimeout(() => el.style.opacity = 0, 1600);
+}
+
+function renderHand(deck, playCardFn) {
+  handEl.innerHTML = '';
+  const n = deck.hand.length, mid = (n - 1) / 2;
+  deck.hand.forEach((c, i) => {
+    const el = document.createElement('div');
+    el.className = 'card ' + c.cls;
+    el.style.setProperty('--x', ((i - mid) * 145) + 'px');
+    el.style.setProperty('--y', (Math.abs(i - mid) * 22) + 'px');
+    el.style.setProperty('--r', ((i - mid) * 5) + 'deg');
+    el.style.zIndex = i + 1;
+    el.innerHTML = `<span class="cost">${c.cost}</span><span class="ico">${c.icon}</span><span class="name">${c.name}</span>`;
+    el.addEventListener('click', () => playCardFn(i));
+    handEl.appendChild(el);
+  });
+}
+
+// Создаём игру и мир
+const game = new Game({
+  canvas: document.createElement('canvas'),
+  width: 800,
+  height: 600,
+});
+
+const world = new World();
+world.ctx = game._sharedCtx;
+
+// Регистрируем системы
+const mazeGen = new MazeGenSystem();
+const cardSys = new CardSystem();
+const enemySys = new EnemySystem();
+const renderSys = new RenderSystem();
+const audioSys = new AudioSystem();
+
+world.pipeline.add(mazeGen, { stage: PipelineStages.STEP });
+world.pipeline.add(cardSys, { stage: PipelineStages.STEP });
+world.pipeline.add(enemySys, { stage: PipelineStages.FIXED_STEP });
+world.pipeline.add(renderSys, { stage: PipelineStages.RENDER });
+world.pipeline.add(audioSys, { stage: PipelineStages.INPUT });
+
+// Создаём начальные сущности
+const playerId = world.create();
+world.add(playerId, Player, {});
+
+const mazeId = world.create();
+world.add(mazeId, Maze, { grid: [], width: 17, height: 17, exitX: 1, exitZ: 1 });
+
+const uiId = world.create();
+world.add(uiId, UIState, { busy: false, dead: false, shake: 0, kick: 0, flashT: 0, bobT: 0 });
+
+// Инициализация
+init3D(world);
+mazeGen.buildLevel();
+cardSys.startTurn();
+toast('УРОВЕНЬ 1 · НАЙДИ ПОРТАЛ');
+
+// Обработчик завершения хода
+$('endbtn').addEventListener('click', () => {
+  const uiState = world.get(uiId, UIState);
+  const deck = world.get(cardSys.decks.first(), Deck);
+  if (uiState.busy || uiState.dead) return;
+  deck.discard.push(...deck.hand);
+  deck.hand = [];
+  cardSys.startTurn();
+});
+
+// Обработчик возрождения
+$('revive').addEventListener('click', () => {
+  const uiState = world.get(uiId, UIState);
+  const player = world.get(playerId, Player);
+  uiState.dead = false;
+  $('over').classList.remove('show');
+  player.hp = 100;
+  player.armor = 25;
+  player.level = 1;
+  player.kills = 0;
+  cardSys.createBaseDeck();
+  mazeGen.buildLevel();
+  cardSys.startTurn();
+  uiState.busy = false;
+  toast('НОВЫЙ ЗАБЕГ');
+});
+
+// Главный цикл
+let lastTime = performance.now();
+function loop(time) {
+  requestAnimationFrame(loop);
+  const dt = Math.min(0.05, (time - lastTime) / 1000);
+  lastTime = time;
+
+  const uiState = world.get(uiId, UIState);
+  const player = world.get(playerId, Player);
+  const deck = world.get(cardSys.decks.first(), Deck);
+
+  // Обновление UI
+  hud(player, deck);
+  renderHand(deck, (idx) => cardSys.playCard(idx));
+
+  // Эффекты
+  $('dmg').style.opacity = player.hp <= 30 ? 0.6 : 0;
+  $('shotfx').style.opacity = uiState.flashT > 0 ? 0.3 : 0;
+  $('healfx').style.opacity = uiState.bobT > 0 ? 0.35 : 0;
+
+  // Блокировка руки
+  handEl.classList.toggle('lock', uiState.busy || uiState.dead);
+
+  // Отрисовка оружия
+  drawWeapon(time / 1000, uiState.kick, uiState.bobT);
+
+  // Рендер сцены
+  if (renderer && scene && camera) {
+    const targetX = player.gx + 0.5 - 8.5;
+    const targetZ = player.gz + 0.5 - 8.5;
+    player.px += (targetX - player.px) * Math.min(1, dt * 12);
+    player.pz += (targetZ - player.pz) * Math.min(1, dt * 12);
+    player.yaw += (player.tyaw - player.yaw) * Math.min(1, dt * 14);
+
+    uiState.shake = Math.max(0, uiState.shake - dt * 2.2);
+    uiState.flashT = Math.max(0, uiState.flashT - dt);
+    uiState.kick = Math.max(0, uiState.kick - dt * 5);
+
+    const shx = (Math.random() - 0.5) * uiState.shake * 0.12;
+    const shy = (Math.random() - 0.5) * uiState.shake * 0.1;
+    camera.position.set(player.px + shx, 1 + Math.sin(time * 0.0022) * 0.015 + shy, player.pz);
+    camera.rotation.set(0, player.yaw, (Math.random() - 0.5) * uiState.shake * 0.05);
+    pointLight.position.set(player.px, 1.4, player.pz);
+    pointLight.intensity = 9 + (uiState.flashT / 0.12) * 26;
+
+    // Обновление врагов
+    const enemyQuery = world.query({ all: [Enemy] });
+    for (const eid of enemyQuery) {
+      const enemy = world.get(eid, Enemy);
+      const tx = enemy.x + 0.5 - 8.5;
+      const tz = enemy.z + 0.5 - 8.5;
+      enemy.px += (tx - enemy.px) * Math.min(1, dt * 10);
+      enemy.pz += (tz - enemy.pz) * Math.min(1, dt * 10);
+      enemy.lunge = Math.max(0, enemy.lunge - dt * 5);
+      enemy.flash = Math.max(0, enemy.flash - dt);
+
+      const dx = player.px - enemy.px;
+      const dz = player.pz - enemy.pz;
+      const L = Math.hypot(dx, dz) || 1;
+      enemy.sprite.position.set(
+        enemy.px + dx / L * enemy.lunge * 0.3,
+        enemy.sy / 2 + Math.sin(time * 0.003 + enemy.ph) * 0.03,
+        enemy.pz + dz / L * enemy.lunge * 0.3
+      );
+      enemy.sprite.material = enemy.flash > 0 ? enemy.matF : enemy.matN;
+    }
+
+    portalSprite.material.rotation += dt * 1.4;
+    portalSprite.position.y = 0.95 + Math.sin(time * 0.0025) * 0.06;
+
+    renderer.render(scene, camera);
+  }
+}
+
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
